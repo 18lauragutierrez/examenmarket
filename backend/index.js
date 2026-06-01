@@ -38,10 +38,21 @@ const upload = multer({
 
 app.use('/uploads', express.static(uploadDir));
 
+// Configuración del Pool de conexiones a PostgreSQL
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  max: parseInt(process.env.PG_MAX || '6', 10), // máximo de conexiones en el pool
+  idleTimeoutMillis: parseInt(process.env.PG_IDLE || '30000', 10), // tiempo para liberar conexiones inactivas
+  connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '2000', 10), // tiempo para esperar conexión
+  application_name: process.env.PG_APP_NAME || 'examenmarket-backend'
 });
+
+// Listeners para monitoreo del pool
+db.on('connect', () => console.log('🔌 PG Pool: new client connected'));
+db.on('acquire', () => console.log('🔁 PG Pool: client acquired from pool'));
+db.on('remove', () => console.log('🗑️ PG Pool: client removed from pool'));
+db.on('error', (err) => console.error('❗ PG Pool Error', err && err.message ? err.message : err));
 
 // Crea la tabla automáticamente si no existe al encender el servidor
 async function inicializarBaseDeDatos() {
@@ -199,6 +210,11 @@ app.get('/', (req, res) => {
     <h1>Backend de Minimarket</h1>
     <p>Servicio activo. Usa <a href="/api/products">/api/products</a> para acceder a la API.</p>
   `);
+});
+
+// Ruta de health check sencilla (NO consulta la base de datos)
+app.get('/_health', (req, res) => {
+  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
 });
 
 // Manejo Global de Errores (Extra obligatorio)
