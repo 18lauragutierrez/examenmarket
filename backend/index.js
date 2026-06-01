@@ -11,6 +11,8 @@ const cors = require('cors');
 const app = express();
 app.use(express.json());
 app.use(cors()); // Crucial para permitir que el frontend de Next.js se conecte
+// Cuando la app está detrás de un proxy (Render), confiar en el proxy
+app.set('trust proxy', true);
 
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -67,19 +69,21 @@ async function inicializarBaseDeDatos() {
 function fixImageUrlForResponse(imageUrl, req) {
   if (!imageUrl) return imageUrl;
   try {
-    if (imageUrl.includes('/uploads/')) {
-      // Si la URL contiene 'localhost' (registrada durante desarrollo), reemplazarla
-      if (imageUrl.includes('localhost')) {
-        const base = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
-        return `${base}/uploads/${path.basename(imageUrl)}`;
-      }
-      return imageUrl;
+    if (!imageUrl.includes('/uploads/')) return imageUrl;
+
+    // Si se configuró explícitamente APP_BASE_URL, úsala (asegúrate de incluir https://)
+    if (process.env.APP_BASE_URL) {
+      const base = process.env.APP_BASE_URL.replace(/\/$/, '');
+      return `${base}/uploads/${path.basename(imageUrl)}`;
     }
+
+    // Determinar esquema preferente: 'x-forwarded-proto' (proxy) o req.protocol
+    const proto = (req.get('x-forwarded-proto') || req.protocol).split(',')[0];
+    const host = req.get('host');
+    return `${proto}://${host}/uploads/${path.basename(imageUrl)}`;
   } catch (e) {
-    // Si algo sale mal, devolver la URL original
     return imageUrl;
   }
-  return imageUrl;
 }
 
 app.use((req, res, next) => {
