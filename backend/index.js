@@ -194,6 +194,13 @@ app.delete('/api/products/:id', async (req, res, next) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>Backend de Minimarket</h1>
+    <p>Servicio activo. Usa <a href="/api/products">/api/products</a> para acceder a la API.</p>
+  `);
+});
+
 // Manejo Global de Errores (Extra obligatorio)
 app.use((err, req, res, next) => {
   console.error(err.stack);
