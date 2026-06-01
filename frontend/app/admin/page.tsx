@@ -35,7 +35,7 @@ export default function AdminPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isSuccess, setIsSuccess] = useState(true);
 
-  // 1. Manejo del Login del Administrador
+  // Manejo del Login del Administrador
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Credenciales de prueba seguras para tu examen
@@ -43,13 +43,15 @@ export default function AdminPage() {
       setIsAuthenticated(true);
       setLoginError('');
     } else {
-      setLoginError('❌ Credenciales incorrectas. Inténtalo de nuevo.');
+      setLoginError('Credenciales incorrectas. Inténtalo de nuevo.');
     }
   };
 
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
   const fetchProducts = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/products');
+      const res = await fetch(`${apiBaseUrl}/api/products`);
       const data = await res.json();
       if (res.ok) {
         setProducts(data);
@@ -94,15 +96,15 @@ export default function AdminPage() {
       const data = await res.json();
       if (res.ok) {
         setIsSuccess(true);
-        setStatusMsg('✅ Producto eliminado correctamente.');
+        setStatusMsg('Producto eliminado correctamente.');
         fetchProducts();
       } else {
         setIsSuccess(false);
-        setStatusMsg(`❌ Error: ${data.error || 'No se pudo eliminar.'}`);
+        setStatusMsg(` Error: ${data.error || 'No se pudo eliminar.'}`);
       }
     } catch (error) {
       setIsSuccess(false);
-      setStatusMsg('❌ Error de conexión: Asegúrate de que el backend esté encendido.');
+      setStatusMsg('Error de conexión: Asegúrate de que el backend esté encendido.');
     }
   };
 
@@ -136,7 +138,9 @@ export default function AdminPage() {
 
     try {
       const method = isEditing ? 'PUT' : 'POST';
-      const url = isEditing ? `http://localhost:4000/api/products/${editingProductId}` : 'http://localhost:4000/api/products';
+      const url = isEditing
+        ? `${apiBaseUrl}/api/products/${editingProductId}`
+        : `${apiBaseUrl}/api/products`;
       const res = await fetch(url, {
         method,
         body: formData,
@@ -148,22 +152,21 @@ export default function AdminPage() {
         setIsSuccess(true);
         setStatusMsg(
           isEditing
-            ? `✅ ¡Éxito! Producto "${data.name || 'actualizado'}" actualizado correctamente.`
-            : `✅ ¡Éxito! Producto "${data.name}" registrado correctamente.`
+            ? `¡Éxito! Producto "${data.name || 'actualizado'}" actualizado correctamente.`
+            : ` ¡Éxito! Producto "${data.name}" registrado correctamente.`
         );
         resetForm();
         fetchProducts();
       } else {
         setIsSuccess(false);
-        setStatusMsg(`❌ Error: ${data.error || 'No se pudo guardar el producto.'}`);
+        setStatusMsg(` Error: ${data.error || 'No se pudo guardar el producto.'}`);
       }
     } catch (error) {
       setIsSuccess(false);
-      setStatusMsg('❌ Error de conexión: Asegúrate de que el backend esté encendido.');
+      setStatusMsg(' Error de conexión: Asegúrate de que el backend esté encendido.');
     }
   };
 
-  // --- INTERFAZ 1: PANTALLA DE LOGIN ---
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -202,7 +205,6 @@ export default function AdminPage() {
     );
   }
 
-  // --- INTERFAZ 2: PANEL DE CONTROL (FORMULARIO DEL MINIMARKET) ---
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-2xl mx-auto">
@@ -303,7 +305,7 @@ export default function AdminPage() {
             )}
 
             <button type="submit" className="w-full bg-green-600 text-white font-black p-4 rounded-xl hover:bg-green-700 shadow-md transition duration-200">
-              {isEditing ? '🔄 Actualizar producto' : '🚀 Registrar Abarrote en Render'}
+              {isEditing ? ' Actualizar producto' : ' Registrar Abarrote en Render'}
             </button>
           </form>
         </div>

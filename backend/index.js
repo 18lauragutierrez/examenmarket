@@ -38,23 +38,11 @@ const upload = multer({
 
 app.use('/uploads', express.static(uploadDir));
 
-// Configuración del Pool de conexiones a PostgreSQL
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: parseInt(process.env.PG_MAX || '6', 10), // máximo de conexiones en el pool
-  idleTimeoutMillis: parseInt(process.env.PG_IDLE || '30000', 10), // tiempo para liberar conexiones inactivas
-  connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '2000', 10), // tiempo para esperar conexión
-  application_name: process.env.PG_APP_NAME || 'examenmarket-backend'
+  ssl: { rejectUnauthorized: false }
 });
 
-// Listeners para monitoreo del pool
-db.on('connect', () => console.log('🔌 PG Pool: new client connected'));
-db.on('acquire', () => console.log('🔁 PG Pool: client acquired from pool'));
-db.on('remove', () => console.log('🗑️ PG Pool: client removed from pool'));
-db.on('error', (err) => console.error('❗ PG Pool Error', err && err.message ? err.message : err));
-
-// Crea la tabla automáticamente si no existe al encender el servidor
 async function inicializarBaseDeDatos() {
   const queryTabla = `
     CREATE TABLE IF NOT EXISTS products (
@@ -68,19 +56,37 @@ async function inicializarBaseDeDatos() {
   `;
   try {
     await db.query(queryTabla);
-    console.log('✅ Base de datos inicializada: Tabla "products" lista.');
+    console.log(' Base de datos inicializada: Tabla "products" lista.');
   } catch (err) {
-    console.error('❌ Error al inicializar la tabla:', err.message);
+    console.error(' Error al inicializar la tabla:', err.message);
   }
 }
 
-// Middleware para Logging (Extra obligatorio)
+// Convierte rutas locales guardadas como http://localhost:.../uploads/archivo
+// a la URL pública correspondiente según el entorno de ejecución.
+function fixImageUrlForResponse(imageUrl, req) {
+  if (!imageUrl) return imageUrl;
+  try {
+    if (imageUrl.includes('/uploads/')) {
+      // Si la URL contiene 'localhost' (registrada durante desarrollo), reemplazarla
+      if (imageUrl.includes('localhost')) {
+        const base = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+        return `${base}/uploads/${path.basename(imageUrl)}`;
+      }
+      return imageUrl;
+    }
+  } catch (e) {
+    // Si algo sale mal, devolver la URL original
+    return imageUrl;
+  }
+  return imageUrl;
+}
+
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} realizado en ${req.url}`);
   next();
 });
 
-// Validación de datos con Joi (Extra obligatorio)
 const productSchema = joi.object({
   name: joi.string().max(255).min(3).required(),
   description: joi.string().allow(''),
@@ -89,12 +95,13 @@ const productSchema = joi.object({
   stock: joi.number().integer().min(0).required()
 });
 
-// --- ENDPOINTS REST (CRUD) ---
 
 app.get('/api/products', async (req, res, next) => {
   try {
     const result = await db.query('SELECT * FROM products ORDER BY id ASC');
-    res.json(result.rows);
+    // Normalizar image_url en cada fila para entornos remotos
+    const rows = result.rows.map(r => ({ ...r, image_url: fixImageUrlForResponse(r.image_url, req) }));
+    res.json(rows);
   } catch (error) {
     next(error);
   }
@@ -105,7 +112,9 @@ app.get('/api/products/:id', async (req, res, next) => {
     const { id } = req.params;
     const result = await db.query('SELECT * FROM products WHERE id = $1', [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'El producto no existe.' });
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    row.image_url = fixImageUrlForResponse(row.image_url, req);
+    res.json(row);
   } catch (error) {
     next(error);
   }
@@ -212,26 +221,17 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Ruta de health check sencilla (NO consulta la base de datos)
-app.get('/_health', (req, res) => {
-  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
-});
-
 // Manejo Global de Errores (Extra obligatorio)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Ocurrió un error inesperado en el servidor.' });
 });
 
-// --- AJUSTE DE ARRANQUE FORZADO FIJO ---
-// Evita conflicto con Next.js (puerto 3000) usando 4000 por defecto
 const PORT = process.env.PORT || 4000;
 
-// Levantamos primero el servidor para que Express tome el puerto de inmediato y se quede despierto
 app.listen(PORT, () => {
   console.log(`🚀 Servidor del backend escuchando fijo en http://localhost:${PORT}`);
   
-  // Una vez despierto el puerto, conectamos e inicializamos la tabla en segundo plano
   inicializarBaseDeDatos().then(() => {
     console.log('✨ Sistema de sincronización de datos con Render Activo.');
   });

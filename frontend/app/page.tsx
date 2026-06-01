@@ -1,3 +1,7 @@
+'use client';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+
 interface Product {
   id: number;
   name: string;
@@ -12,8 +16,8 @@ export default async function Home() {
   let errorMsg = "";
 
   try {
-    // Llama al backend en el puerto 4000 (ajustado para evitar conflicto con Next.js)
-    const res = await fetch('http://localhost:4000/api/products', { cache: 'no-store' });
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const res = await fetch(`${apiUrl}/api/products`, { cache: 'no-store' });
     if (!res.ok) throw new Error();
     products = await res.json();
   } catch (err) {
